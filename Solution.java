@@ -2,6 +2,7 @@ package ub.cse.algo;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 
 import static ub.cse.algo.Traversals.bfs;
 import static ub.cse.algo.Traversals.bfsPaths;
@@ -41,11 +42,14 @@ public class Solution {
         // d(c) is the length of the shortest path
 
         // POTENTIAL_HOLE_IN_THINKING (PHIT): What if there is another path that would meet these constraints but is not the shortest path?
-
+        HashSet<Client> runDOnThis= new HashSet();
         for (Client c: clients){
             int length = bfsPaths.get(c).size();
             if (length>c.alpha*length){
                 bfsPaths.remove(c);
+                if (c.alpha!=1){
+                    runDOnThis.add(c);
+                }
             }
         }
         sol.paths=bfsPaths;
