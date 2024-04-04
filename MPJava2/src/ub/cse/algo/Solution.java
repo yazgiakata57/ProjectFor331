@@ -25,7 +25,7 @@ public class Solution {
     }
 
     /**
-     * Method that returns the calculated 
+     * Method that returns the calculated
      * SolutionObject as found by your algorithm
      *
      * @return SolutionObject containing the paths, priorities and bandwidths
@@ -35,42 +35,91 @@ public class Solution {
         ret_val.sort(new possibleMaxProfit());
         return ret_val;
     }
-    public ArrayList<Integer> pathOfTheNode(Graph graph, Integer from, Integer to,HashSet<Integer> removedNodes){
+    public boolean reachedQuota(HashMap<Integer, HashMap<Integer,Integer>> nodePopulation,Integer neighbor, int time){
+        HashMap<Integer,Integer> timetable= nodePopulation.get(neighbor);
+        Integer populationAtGivenTime= timetable.get(time);
+        if (populationAtGivenTime>=bandwidths.get(neighbor)){
+            return true;
+        }
+        return false;
+    }
+    //Dijkstras
+    public ArrayList<Integer> pathOfTheNode(Graph graph, Integer from, Integer to,HashMap<Integer, Integer> removedNodes, HashMap<Integer, HashMap<Integer,Integer>> nodePopulation, HashMap<Integer,ArrayList<Integer>>paths){
+        //from is client id and finding the node with the exact client id is rough
+        HashSet<Integer> explored = new HashSet<>();
+        HashMap<Integer, Integer> path = new HashMap<>();
+
+        node2Comp comp = new node2Comp();
+        PriorityQueue<Node2> todo = new PriorityQueue<>((java.util.Comparator) comp);
+        int bwdith = bandwidths.get(from);
+        todo.add(new Node2(from, bwdith,from));
+        int time=0;
+        while (!todo.isEmpty()){
+            Node2 node = todo.poll();
+            Integer currentClient = node.clientID;
+            if (!explored.contains(currentClient)){
+                //SET PART
+                explored.add(currentClient);
+                path.put(currentClient, node.prev);
+                time++;
+
+                //NOW ADD TO THE PRIORITY QUEUE
+                ArrayList<Integer> neighbors = graph.get(currentClient);
+                // QUESTION: DO YOU HAVE TO CONSIDER EACH NEIGHBOR
+                for (Integer neighbor: neighbors){
+                    int nextBWidth = bandwidths.get(neighbor) + node.totalBandwidth;
+                    // IMPORTANTE!!!!! :    IF NEIGHBOR HAS NOT REACHED ITS CAPACITY AT THE GIVEN TIME ADD IT TO THE QUEUE... OTHERWISE, DONT BOTHER.
+                    if (!reachedQuota(nodePopulation,neighbor,time)){
+                        Node2 newNode = new Node2(neighbor, nextBWidth, currentClient);
+                        todo.add(newNode);
+                    }
+                }
+
+            }
+
+        }
+
+        if (path.containsKey(to)){
+            ArrayList<Integer> p = new ArrayList<>();
+            int cur = to;
+            while (cur != graph.contentProvider){
+                p.add(0,cur);
+                int prev = path.get(cur);
+                cur = prev;
+                if (paths.containsKey(cur)){
+                    p.addAll(0,paths.get(cur));
+                    return p;
+                }
+            }
+            return p;
+        }
         return new ArrayList<>();
     }
 
     // bandwidthTrack maps each node to a hashmap that maps the time to the population of that node at that time
-    public void updateGraph(HashMap<Integer, HashMap<Integer, Integer>> bandwidthTrack, Graph graph,ArrayList<Integer> pathOfTheNode,HashSet<Integer> removedNodes ){
-        for (int i=0;i<pathOfTheNode.size();i++){
-            Integer time=i;
-            Integer node= pathOfTheNode.get(time);
-            Integer curValOfNode=bandwidthTrack.get(node).get(time);
-            Integer updatedValOfNode= curValOfNode+1;
-            bandwidthTrack.get(node).put(time,updatedValOfNode);
+    public void updatePopulation(HashMap<Integer, HashMap<Integer, Integer>> nodePopulation, ArrayList<Integer> pathOfTheNode ){
 
-            //find the client object of the node
-            //DUMMY CODE BELOW
-            Client a= clients.get(0);
-
-            if (updatedValOfNode==a.beta){
-                removedNodes.add(a.id);
-            }
+        for (int i=0; i< pathOfTheNode.size();i++){
+            Integer currentNode=pathOfTheNode.get(i);
+            int time=i;
+            Integer currentPopulationOfNode=nodePopulation.get(currentNode).getOrDefault(time,0);
+            nodePopulation.get(currentNode).put(time, currentPopulationOfNode+1);
         }
     }
     public HashMap< Integer, ArrayList<Integer>> GENERAL(){
         ArrayList<Client> client= orderOfDijkstras(clients);
-        Integer from=0;
+        Integer from= graph.contentProvider;
         HashSet<Integer> removedNodes= new HashSet<>();
-        HashMap<Integer,HashMap<Integer, Integer>> bandwidthTrack= new HashMap<>();
+        HashMap<Integer,HashMap<Integer, Integer>> nodePopulation= new HashMap<>();
         HashMap< Integer, ArrayList<Integer>> ret_val= new HashMap<>();
 
         for (Client c:client){
-            Integer to= c.id;
+            Integer to=c.id;
 
-            ArrayList<Integer> path=pathOfTheNode(graph,from,to,removedNodes);
+            ArrayList<Integer> path=pathOfTheNode(graph,from,to,null,null);
             ret_val.put(c.id,path);
 
-            updateGraph(bandwidthTrack,graph,path,removedNodes);
+            updatePopulation(nodePopulation,path);
         }
         return ret_val;
     }
@@ -88,7 +137,7 @@ public class Solution {
 
 
 
-
+//COMPARATORS
 
     public class Comparator<T> {
         public int compare(T a, T b){
@@ -106,15 +155,39 @@ public class Solution {
             }
             return -1;
         }
-
-        @Override
-        public boolean equals(Object obj) {
-            return false;
-        }
-
-        @Override
-        public java.util.Comparator<Client> reversed() {
-            return java.util.Comparator.super.reversed();
+    }
+    public static class Node2 {
+        public int clientID;
+        public int totalBandwidth;
+        public int prev;
+        public Node2(int clientID, int bwidth, int prev){
+            this.clientID = clientID;
+            this.totalBandwidth = bwidth;
+            this.prev = prev;
         }
     }
+
+    public class node2Comp extends Comparator<Node2> {
+        @Override
+        public int compare (Node2 n1, Node2 n2){
+            return Integer.compare(n2.totalBandwidth, n1.totalBandwidth);
+        }
+    }
+
+//    public class PQComparator extends Comparator<Client> implements java.util.Comparator<Client>{
+//        @Override
+//        public int compare (Client c1, Client c2){
+//            Integer c1_bandwidth=bandwidths.get(c1.id); // takes O(1) time gets val from ArrayList
+//            Integer c2_bandwidth=bandwidths.get(c2.id); // takes O(1) time gets val from ArrayList
+//            if(c1_bandwidth>c2_bandwidth){
+//                return 1;
+//            }else if(c1_bandwidth==c2_bandwidth){
+//                return 0;
+//            }
+//            return -1;
+//        }
+//    }
+
 }
+
+
